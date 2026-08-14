@@ -1,0 +1,16 @@
+{
+  "result": "PASS",
+  "changedFiles": [
+    ".no-mistakes.yaml"
+  ],
+  "semanticChanges": [
+    {
+      "key": "test.evidence.store_in_repo",
+      "before": false,
+      "after": true
+    }
+  ],
+  "effectiveSetting": {
+    "test.evidence.store_in_repo": true
+  }
+}

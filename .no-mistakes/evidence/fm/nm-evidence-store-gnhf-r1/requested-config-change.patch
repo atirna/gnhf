@@ -1,0 +1,15 @@
+diff --git a/.no-mistakes.yaml b/.no-mistakes.yaml
+index bdef7f8..020d3f7 100644
+--- a/.no-mistakes.yaml
++++ b/.no-mistakes.yaml
+@@ -1,7 +1,7 @@
+ # Per-repo no-mistakes overrides.
+ 
+-# Keep pipeline test evidence (transcripts, screenshots, fixture homes) out of
+-# this repo; it stays in a temp dir instead and can be linked from PR bodies.
++# Keep pipeline test evidence (transcripts, screenshots, fixture homes) in
++# this repo so runs can attach it from the checkout instead of a temp dir.
+ test:
+   evidence:
+-    store_in_repo: false
++    store_in_repo: true
