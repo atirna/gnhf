@@ -46,6 +46,7 @@ import { appendDebugLog } from "./debug-log.js";
 import { Orchestrator } from "./orchestrator.js";
 import {
   PermanentAgentError,
+  RateLimitAgentError,
   type Agent,
   type AgentResult,
 } from "./agents/types.js";
@@ -1271,6 +1272,270 @@ describe("Orchestrator backoff behavior", () => {
     });
 
     await startPromise;
+  });
+
+  it("waits until the rate limit resets and retries the same iteration without counting a failure", async () => {
+    vi.useFakeTimers();
+
+    const resumeAt = new Date(Date.now() + 10 * 60_000);
+    let callCount = 0;
+    const agent: Agent = {
+      name: "claude",
+      run: vi.fn(async () => {
+        callCount++;
+        if (callCount === 1) {
+          throw new RateLimitAgentError(
+            "claude usage limit reached",
+            "claude exited with code 1: usage limit",
+            resumeAt,
+          );
+        }
+        return createSuccessResult();
+      }),
+    };
+    const orchestrator = new Orchestrator(
+      config,
+      agent,
+      runInfo,
+      "ship it",
+      "/repo",
+      0,
+      { maxIterations: 1 },
+    );
+
+    const startPromise = orchestrator.start();
+
+    await vi.waitFor(() => {
+      expect(agent.run).toHaveBeenCalledTimes(1);
+    });
+    await vi.waitFor(() => {
+      expect(orchestrator.getState().status).toBe("waiting");
+    });
+
+    // The rate-limited attempt is rolled back but not recorded as a failure.
+    expect(mockResetHard).toHaveBeenCalledTimes(1);
+    expect(mockAppendNotes).not.toHaveBeenCalled();
+    expect(orchestrator.getState()).toMatchObject({
+      failCount: 0,
+      consecutiveFailures: 0,
+      consecutiveErrors: 0,
+      currentIteration: 0,
+    });
+    // Wakes shortly after the provider-reported reset time, not before.
+    const waitingUntil = orchestrator.getState().waitingUntil;
+    expect(waitingUntil).toEqual(new Date(resumeAt.getTime() + 60_000));
+
+    await vi.advanceTimersByTimeAsync(11 * 60_000);
+
+    await vi.waitFor(() => {
+      expect(agent.run).toHaveBeenCalledTimes(2);
+    });
+    await startPromise;
+
+    // The retry reused iteration 1, so maxIterations: 1 still permitted it.
+    expect(orchestrator.getState()).toMatchObject({
+      successCount: 1,
+      failCount: 0,
+      currentIteration: 1,
+    });
+  });
+
+  it("aborts when the total configured rate-limit wait would be exceeded", async () => {
+    vi.useFakeTimers();
+
+    let callCount = 0;
+    const agent: Agent = {
+      name: "claude",
+      run: vi.fn(async () => {
+        callCount++;
+        if (callCount <= 2) {
+          throw new RateLimitAgentError(
+            "claude usage limit reached",
+            "detail",
+            new Date(Date.now() + 60_000),
+          );
+        }
+        return createSuccessResult();
+      }),
+    };
+    const orchestrator = new Orchestrator(
+      config,
+      agent,
+      runInfo,
+      "ship it",
+      "/repo",
+      0,
+      { maxIterations: 1, maxRateLimitWaitMs: 3 * 60_000 },
+    );
+    const abort = vi.fn();
+    orchestrator.on("abort", abort);
+
+    const startPromise = orchestrator.start();
+
+    await vi.waitFor(() => {
+      expect(orchestrator.getState().status).toBe("waiting");
+    });
+    await vi.advanceTimersByTimeAsync(2 * 60_000);
+    await vi.waitFor(() => {
+      expect(agent.run).toHaveBeenCalledTimes(2);
+    });
+
+    // Let the pre-change implementation finish its unbounded second wait so
+    // this test fails on the assertion below instead of hanging.
+    await vi.advanceTimersByTimeAsync(24 * 60 * 60_000);
+    await startPromise;
+
+    expect(agent.run).toHaveBeenCalledTimes(2);
+    expect(orchestrator.getState().status).toBe("aborted");
+    expect(abort).toHaveBeenCalledWith(
+      expect.stringContaining("maximum rate-limit wait"),
+    );
+  });
+
+  it("honors a graceful stop requested mid-iteration instead of entering the rate-limit wait", async () => {
+    vi.useFakeTimers();
+
+    let rejectRun!: (error: Error) => void;
+    const agent: Agent = {
+      name: "claude",
+      run: vi.fn(
+        () =>
+          new Promise<AgentResult>((_resolve, reject) => {
+            rejectRun = reject;
+          }),
+      ),
+      close: vi.fn(() => Promise.resolve()),
+    };
+    const orchestrator = new Orchestrator(
+      config,
+      agent,
+      runInfo,
+      "ship it",
+      "/repo",
+    );
+
+    const startPromise = orchestrator.start();
+
+    await vi.waitFor(() => {
+      expect(agent.run).toHaveBeenCalledTimes(1);
+    });
+
+    orchestrator.requestGracefulStop();
+    rejectRun(
+      new RateLimitAgentError(
+        "claude usage limit reached",
+        "detail",
+        new Date(Date.now() + 60 * 60_000),
+      ),
+    );
+    await startPromise;
+
+    expect(agent.run).toHaveBeenCalledTimes(1);
+    expect(orchestrator.getState().status).toBe("stopped");
+  });
+
+  it("caps the wait for a far-future rate limit reset so the timer cannot overflow", async () => {
+    vi.useFakeTimers();
+
+    const resumeAt = new Date(Date.now() + 40 * 24 * 60 * 60_000);
+    let callCount = 0;
+    const agent: Agent = {
+      name: "claude",
+      run: vi.fn(async () => {
+        callCount++;
+        if (callCount === 1) {
+          throw new RateLimitAgentError(
+            "claude usage limit reached",
+            "detail",
+            resumeAt,
+          );
+        }
+        return createSuccessResult();
+      }),
+    };
+    const orchestrator = new Orchestrator(
+      config,
+      agent,
+      runInfo,
+      "ship it",
+      "/repo",
+      0,
+      { maxIterations: 1 },
+    );
+
+    const startPromise = orchestrator.start();
+
+    await vi.waitFor(() => {
+      expect(orchestrator.getState().status).toBe("waiting");
+    });
+
+    const waitingUntil = orchestrator.getState().waitingUntil;
+    expect(waitingUntil!.getTime() - Date.now()).toBeLessThanOrEqual(
+      24 * 60 * 60_000,
+    );
+
+    // An overflowed setTimeout fires after ~1 ms; a capped wait must hold.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(agent.run).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(24 * 60 * 60_000);
+    await vi.waitFor(() => {
+      expect(agent.run).toHaveBeenCalledTimes(2);
+    });
+    await startPromise;
+
+    expect(orchestrator.getState()).toMatchObject({
+      successCount: 1,
+      failCount: 0,
+    });
+  });
+
+  it("uses a bounded fallback wait when the rate limit reset time is missing", async () => {
+    vi.useFakeTimers();
+
+    let callCount = 0;
+    const agent: Agent = {
+      name: "claude",
+      run: vi.fn(async () => {
+        callCount++;
+        if (callCount === 1) {
+          throw new RateLimitAgentError(
+            "claude usage limit reached",
+            "detail",
+            null,
+          );
+        }
+        return createSuccessResult();
+      }),
+    };
+    const orchestrator = new Orchestrator(
+      config,
+      agent,
+      runInfo,
+      "ship it",
+      "/repo",
+      0,
+      { maxIterations: 1 },
+    );
+
+    const startPromise = orchestrator.start();
+
+    await vi.waitFor(() => {
+      expect(orchestrator.getState().status).toBe("waiting");
+    });
+    expect(agent.run).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    await vi.waitFor(() => {
+      expect(agent.run).toHaveBeenCalledTimes(2);
+    });
+    await startPromise;
+
+    expect(orchestrator.getState()).toMatchObject({
+      successCount: 1,
+      failCount: 0,
+    });
   });
 
   it("aborts immediately for permanent agent errors without backoff", async () => {
