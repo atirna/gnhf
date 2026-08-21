@@ -57,7 +57,10 @@ import {
   type CommitMessageConfig,
 } from "./core/commit-message.js";
 import { Orchestrator } from "./core/orchestrator.js";
-import { renderExitSummary } from "./core/exit-summary.js";
+import {
+  renderExitSummary,
+  type SleepPreventionNotice,
+} from "./core/exit-summary.js";
 import { MockOrchestrator } from "./mock-orchestrator.js";
 import { Renderer } from "./renderer.js";
 import { slugifyPrompt } from "./utils/slugify.js";
@@ -934,6 +937,8 @@ program
       }
 
       let sleepPreventionCleanup: (() => Promise<void>) | null = null;
+      let sleepPreventionConfirmed: Promise<boolean> | null = null;
+      let sleepPreventionNotice: SleepPreventionNotice | undefined;
       if (config.preventSleep) {
         const persistedPrompt =
           promptFromStdin && prompt !== undefined
@@ -959,6 +964,13 @@ program
           }
           if (sleepPrevention.type === "active") {
             sleepPreventionCleanup = sleepPrevention.cleanup;
+            sleepPreventionConfirmed = sleepPrevention.confirmed;
+          }
+          if (
+            sleepPrevention.type === "skipped" &&
+            sleepPrevention.reason === "unavailable"
+          ) {
+            sleepPreventionNotice = "unstarted";
           }
         } finally {
           if (!reexeced) {
@@ -1132,6 +1144,9 @@ program
         process.off("SIGINT", handleSigInt);
         process.off("SIGTERM", handleSigTerm);
         await sleepPreventionCleanup?.();
+        if (sleepPreventionConfirmed && !(await sleepPreventionConfirmed)) {
+          sleepPreventionNotice = "unconfirmed";
+        }
       }
 
       {
@@ -1174,6 +1189,7 @@ program
           color: shouldUseColor(),
           terminalColumns: process.stdout.columns,
           hasPendingCommitFailure: finalState.hasPendingCommitFailure,
+          sleepPreventionNotice,
         });
 
         appendDebugLog("run:complete", {

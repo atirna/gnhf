@@ -100,6 +100,43 @@ describe("renderExitSummary", () => {
     );
   });
 
+  it("warns that the machine may have slept when the inhibitor was never confirmed", () => {
+    const summary = stripExitSummaryAnsi(
+      renderExitSummary({
+        ...baseSummary,
+        sleepPreventionNotice: "unconfirmed",
+        color: false,
+      }),
+    );
+
+    expect(summary).toContain(
+      "sleep           prevention unavailable; this machine may have slept",
+    );
+  });
+
+  it("does not claim the machine may have slept when no inhibitor started", () => {
+    const summary = stripExitSummaryAnsi(
+      renderExitSummary({
+        ...baseSummary,
+        sleepPreventionNotice: "unstarted",
+        color: false,
+      }),
+    );
+
+    expect(summary).toContain(
+      "sleep           prevention could not be started for this run",
+    );
+    expect(summary).not.toContain("may have slept");
+  });
+
+  it("omits the sleep warning when prevention held for the run", () => {
+    const summary = stripExitSummaryAnsi(
+      renderExitSummary({ ...baseSummary, color: false }),
+    );
+
+    expect(summary).not.toContain("prevention unavailable");
+  });
+
   it("adds ANSI color when requested", () => {
     const summary = renderExitSummary({ ...baseSummary, color: true });
 

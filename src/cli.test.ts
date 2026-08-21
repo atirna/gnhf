@@ -13,6 +13,7 @@ import { dirname, isAbsolute, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { CONVENTIONAL_COMMIT_MESSAGE } from "./core/commit-message.js";
 import type { Config } from "./core/config.js";
+import { stripExitSummaryAnsi } from "./core/exit-summary.js";
 import type { RunInfo } from "./core/run.js";
 
 const TEST_AGENT_NAMES = [
@@ -1319,6 +1320,94 @@ describe("cli", () => {
       maxConsecutiveFailures: 3,
       preventSleep: false,
     });
+  });
+
+  it("reports an unconfirmed sleep helper in the permanent exit summary", async () => {
+    const startSleepPrevention = vi.fn(() =>
+      Promise.resolve({
+        type: "active" as const,
+        cleanup: () => Promise.resolve(),
+        confirmed: Promise.resolve(false),
+      }),
+    );
+
+    const { stdoutWriteCalls } = await runCliWithMocks(
+      ["ship it"],
+      {
+        agent: "claude",
+        agentPathOverride: {},
+        agentArgsOverride: {},
+        acpRegistryOverrides: {},
+        maxConsecutiveFailures: 3,
+        preventSleep: true,
+      },
+      { startSleepPrevention },
+    );
+
+    expect(stripExitSummaryAnsi(stdoutWriteCalls.flat().join(""))).toContain(
+      "prevention unavailable; this machine may have slept",
+    );
+  });
+
+  it("reports unavailable sleep prevention in the permanent exit summary", async () => {
+    const startSleepPrevention = vi.fn(() =>
+      Promise.resolve({
+        type: "skipped" as const,
+        reason: "unavailable" as const,
+      }),
+    );
+
+    const { stdoutWriteCalls, orchestratorCtor } = await runCliWithMocks(
+      ["ship it"],
+      {
+        agent: "claude",
+        agentPathOverride: {},
+        agentArgsOverride: {},
+        acpRegistryOverrides: {},
+        maxConsecutiveFailures: 3,
+        preventSleep: true,
+      },
+      { startSleepPrevention },
+    );
+
+    expect(startSleepPrevention).toHaveBeenCalledTimes(1);
+    // The summary survives the alt screen the renderer owns for the whole
+    // run, so this is the notice the user actually gets to read. An inhibitor
+    // that never started says nothing about whether the machine could sleep,
+    // which matters on the systemd-less Linux hosts that hit this path on
+    // every run.
+    const output = stripExitSummaryAnsi(stdoutWriteCalls.flat().join(""));
+    expect(output).toContain("prevention could not be started for this run");
+    expect(output).not.toContain("may have slept");
+    expect(orchestratorCtor).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays quiet about sleep prevention when the helper is confirmed", async () => {
+    const startSleepPrevention = vi.fn(() =>
+      Promise.resolve({
+        type: "active" as const,
+        cleanup: () => Promise.resolve(),
+        confirmed: Promise.resolve(true),
+      }),
+    );
+
+    const { consoleErrorCalls, stdoutWriteCalls } = await runCliWithMocks(
+      ["ship it"],
+      {
+        agent: "claude",
+        agentPathOverride: {},
+        agentArgsOverride: {},
+        acpRegistryOverrides: {},
+        maxConsecutiveFailures: 3,
+        preventSleep: true,
+      },
+      { startSleepPrevention },
+    );
+
+    const output = stripExitSummaryAnsi(
+      [...stdoutWriteCalls.flat(), ...consoleErrorCalls.flat()].join(""),
+    );
+    expect(output).not.toContain("prevention unavailable");
   });
 
   it("does not emit run:start from the Linux sleep-prevention wrapper process", async () => {
