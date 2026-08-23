@@ -1,0 +1,27 @@
+=== Workflow consumer validation ===
+actionlint: valid GitHub Actions workflow
+trigger: pull_request opened, edited, reopened on main
+security boundary: contents=read, no checkout, no secrets, no pull_request_target
+required check: PR must be raised via no-mistakes
+job exemption expression preserved: github.event.pull_request.user.login != 'github-actions[bot]' && github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.user.login != 'release-please[bot]'
+shared action: kunchenguid/no-mistakes/.github/actions/require-no-mistakes@32d396ac0f29135daf7fcb9964aba9d5f4e796d6
+preserved semantics: workflow identity, branch/path filters, permissions, concurrency, runner, and job condition
+
+=== Shared action behavior at pinned SHA ===
+[compliant] exit=0
+Found no-mistakes signature in PR #42 body.
+Found structurally compliant pipeline step attestation.
+::warning::PR-body attestation is author-editable and is not cryptographic proof that no-mistakes produced it.
+exempt=false compliant=true 
+[last-wins] exit=0
+Found no-mistakes signature in PR #42 body.
+Found structurally compliant pipeline step attestation.
+::warning::PR-body attestation is author-editable and is not cryptographic proof that no-mistakes produced it.
+exempt=false compliant=true 
+[stale] exit=1
+::error::Pipeline attestation head_sha does not match the current PR head.
+Found no-mistakes signature in PR #42 body.
+exempt=false compliant=false exempt=false 
+[unsigned] exit=1
+::error::This PR was not raised through no-mistakes.
+exempt=false compliant=false exempt=false 
