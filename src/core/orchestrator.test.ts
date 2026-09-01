@@ -1527,6 +1527,13 @@ describe("Orchestrator backoff behavior", () => {
     expect(abort).toHaveBeenCalledWith(
       expect.stringContaining("maximum rate-limit wait"),
     );
+    // On a rejection the standing agent error is the provider's own account of
+    // the wait - which limit, and until when - so the leash abort must leave it
+    // for cli.ts to report as the reason the run ended.
+    const finalState = orchestrator.getState();
+    expect(finalState.lastAgentError ?? finalState.lastMessage).toContain(
+      "claude usage limit reached",
+    );
   });
 
   it("honors a graceful stop requested mid-iteration instead of entering the rate-limit wait", async () => {
@@ -1673,6 +1680,520 @@ describe("Orchestrator backoff behavior", () => {
       successCount: 1,
       failCount: 0,
     });
+  });
+
+  it("waits for the window to reset after an iteration billed to extra usage", async () => {
+    vi.useFakeTimers();
+
+    const resumeAt = new Date(Date.now() + 10 * 60_000);
+    let callCount = 0;
+    const agent: Agent = {
+      name: "claude",
+      run: vi.fn(async (_prompt, _cwd, options) => {
+        callCount++;
+        if (callCount === 1) {
+          options?.onOverage?.({ resumeAt });
+        }
+        return createSuccessResult();
+      }),
+    };
+    const orchestrator = new Orchestrator(
+      config,
+      agent,
+      runInfo,
+      "ship it",
+      "/repo",
+      0,
+      { maxIterations: 2 },
+    );
+
+    const startPromise = orchestrator.start();
+
+    await vi.waitFor(() => {
+      expect(orchestrator.getState().status).toBe("waiting");
+    });
+
+    // Unlike a rejection the request was served, so the iteration's work is
+    // real: it is kept, counted, and never rolled back.
+    expect(mockResetHard).not.toHaveBeenCalled();
+    expect(orchestrator.getState()).toMatchObject({
+      successCount: 1,
+      failCount: 0,
+      currentIteration: 1,
+    });
+    expect(orchestrator.getState().waitingUntil).toEqual(
+      new Date(resumeAt.getTime() + 60_000),
+    );
+    // The pause must explain itself, otherwise it is indistinguishable from
+    // an error backoff in the TUI.
+    expect(orchestrator.getState().lastAgentError).toBe(
+      `extra usage engaged - waiting for the usage window to reset at ${resumeAt.toISOString()}`,
+    );
+
+    await vi.advanceTimersByTimeAsync(11 * 60_000);
+
+    await vi.waitFor(() => {
+      expect(agent.run).toHaveBeenCalledTimes(2);
+    });
+    await startPromise;
+
+    expect(orchestrator.getState()).toMatchObject({
+      successCount: 2,
+      currentIteration: 2,
+    });
+    expect(orchestrator.getState().lastAgentError).toBeNull();
+  });
+
+  it("honors the configured rate-limit leash for extra-usage waits", async () => {
+    vi.useFakeTimers();
+
+    const agent: Agent = {
+      name: "claude",
+      run: vi.fn(async (_prompt, _cwd, options) => {
+        options?.onOverage?.({ resumeAt: new Date(Date.now() + 10 * 60_000) });
+        // The billed iteration also errored, so lastAgentError is set when the
+        // leash trips.
+        throw new Error("claude returned no structured_output");
+      }),
+    };
+    const orchestrator = new Orchestrator(
+      config,
+      agent,
+      runInfo,
+      "ship it",
+      "/repo",
+      0,
+      { maxRateLimitWaitMs: 0 },
+    );
+
+    const abort = vi.fn();
+    orchestrator.on("abort", abort);
+
+    await orchestrator.start();
+
+    expect(agent.run).toHaveBeenCalledTimes(1);
+    expect(abort).toHaveBeenCalledWith(
+      expect.stringContaining("maximum rate-limit wait"),
+    );
+    // cli.ts reports `lastAgentError ?? lastMessage` as the reason the run
+    // ended, so a transient wait notice must never shadow the leash abort.
+    const finalState = orchestrator.getState();
+    expect(finalState.lastAgentError ?? finalState.lastMessage).toContain(
+      "maximum rate-limit wait exceeded",
+    );
+  });
+
+  it("keeps the extra-usage wait reason out of the reason the run ended", async () => {
+    vi.useFakeTimers();
+
+    const firstResumeAt = new Date(Date.now() + 10 * 60_000);
+    const agent: Agent = {
+      name: "claude",
+      run: vi.fn(async (_prompt, _cwd, options) => {
+        options?.onOverage?.({ resumeAt: new Date(Date.now() + 10 * 60_000) });
+        return createSuccessResult();
+      }),
+    };
+    const orchestrator = new Orchestrator(
+      config,
+      agent,
+      runInfo,
+      "ship it",
+      "/repo",
+      0,
+      { maxRateLimitWaitMs: 15 * 60_000 },
+    );
+
+    const startPromise = orchestrator.start();
+
+    await vi.waitFor(() => {
+      expect(orchestrator.getState().status).toBe("waiting");
+    });
+    expect(orchestrator.getState().lastAgentError).toBe(
+      `extra usage engaged - waiting for the usage window to reset at ${firstResumeAt.toISOString()}`,
+    );
+
+    // Resume, then let the second pause overrun the leash.
+    await vi.advanceTimersByTimeAsync(11 * 60_000);
+    await vi.waitFor(() => {
+      expect(orchestrator.getState().status).toBe("aborted");
+    });
+    await startPromise;
+
+    const finalState = orchestrator.getState();
+    expect(finalState.lastAgentError ?? finalState.lastMessage).toContain(
+      "maximum rate-limit wait exceeded",
+    );
+  });
+
+  it("drops the extra-usage wait reason when the pause is interrupted", async () => {
+    vi.useFakeTimers();
+
+    const resumeAt = new Date(Date.now() + 10 * 60_000);
+    const agent: Agent = {
+      name: "claude",
+      run: vi.fn(async (_prompt, _cwd, options) => {
+        options?.onOverage?.({ resumeAt });
+        return createSuccessResult();
+      }),
+      close: vi.fn(() => Promise.resolve()),
+    };
+    const orchestrator = new Orchestrator(
+      config,
+      agent,
+      runInfo,
+      "ship it",
+      "/repo",
+    );
+
+    const startPromise = orchestrator.start();
+
+    await vi.waitFor(() => {
+      expect(orchestrator.getState().status).toBe("waiting");
+    });
+    expect(orchestrator.getState().lastAgentError).toBe(
+      `extra usage engaged - waiting for the usage window to reset at ${resumeAt.toISOString()}`,
+    );
+
+    orchestrator.requestGracefulStop();
+    await startPromise;
+
+    expect(orchestrator.getState().status).toBe("stopped");
+    // The pause is over, so its notice must not be left behind as the reason
+    // the run ended.
+    expect(orchestrator.getState().lastAgentError).toBeNull();
+  });
+
+  it("continues immediately when the extra-usage reset time has already elapsed", async () => {
+    vi.useFakeTimers();
+
+    // An elapsed reset instant is the provider saying the included window is
+    // already back, so the next iteration is free: continue without pausing
+    // and without ending the run.
+    const resumeAt = new Date(Date.now() - 60_000);
+    const agent: Agent = {
+      name: "claude",
+      run: vi.fn(async (_prompt, _cwd, options) => {
+        options?.onOverage?.({ resumeAt });
+        return createSuccessResult();
+      }),
+    };
+    const orchestrator = new Orchestrator(
+      config,
+      agent,
+      runInfo,
+      "ship it",
+      "/repo",
+      0,
+      { maxIterations: 2 },
+    );
+
+    const abort = vi.fn();
+    orchestrator.on("abort", abort);
+
+    // No timer advancing: a pause here would leave this promise unresolved.
+    await orchestrator.start();
+
+    expect(agent.run).toHaveBeenCalledTimes(2);
+    expect(abort).not.toHaveBeenCalledWith(
+      expect.stringContaining("extra usage"),
+    );
+    expect(orchestrator.getState()).toMatchObject({
+      successCount: 2,
+      currentIteration: 2,
+    });
+  });
+
+  it("continues when the window returned while the billed iteration was still running", async () => {
+    vi.useFakeTimers();
+
+    // The realistic shape: the window flips to overage five minutes before it
+    // resets, and the iteration then runs for another twenty. By the time the
+    // orchestrator sees the signal the window is long back.
+    const resumeAt = new Date(Date.now() + 5 * 60_000);
+    let callCount = 0;
+    const agent: Agent = {
+      name: "claude",
+      run: vi.fn(async (_prompt, _cwd, options) => {
+        callCount++;
+        if (callCount === 1) {
+          options?.onOverage?.({ resumeAt });
+          vi.setSystemTime(resumeAt.getTime() + 20 * 60_000);
+        }
+        return createSuccessResult();
+      }),
+    };
+    const orchestrator = new Orchestrator(
+      config,
+      agent,
+      runInfo,
+      "ship it",
+      "/repo",
+      0,
+      { maxIterations: 2 },
+    );
+
+    const abort = vi.fn();
+    orchestrator.on("abort", abort);
+
+    await orchestrator.start();
+
+    expect(agent.run).toHaveBeenCalledTimes(2);
+    expect(abort).not.toHaveBeenCalledWith(
+      expect.stringContaining("extra usage"),
+    );
+    expect(orchestrator.getState()).toMatchObject({
+      successCount: 2,
+      currentIteration: 2,
+    });
+  });
+
+  it("aborts instead of resuming into a billed iteration when the extra-usage reset is beyond the wait cap", async () => {
+    vi.useFakeTimers();
+
+    // Further out than a single sleep can cover (a weekly rather than
+    // five-hour limit). Capping the wait would end it before the window
+    // returns, so resuming on it buys another billed iteration.
+    const resumeAt = new Date(Date.now() + 25 * 60 * 60_000);
+    const agent: Agent = {
+      name: "claude",
+      run: vi.fn(async (_prompt, _cwd, options) => {
+        options?.onOverage?.({ resumeAt });
+        return createSuccessResult();
+      }),
+    };
+    const orchestrator = new Orchestrator(
+      config,
+      agent,
+      runInfo,
+      "ship it",
+      "/repo",
+      0,
+      { maxIterations: 3 },
+    );
+
+    const abort = vi.fn();
+    orchestrator.on("abort", abort);
+
+    const startPromise = orchestrator.start();
+    await vi.advanceTimersByTimeAsync(26 * 60 * 60_000);
+    await startPromise;
+
+    expect(agent.run).toHaveBeenCalledTimes(1);
+    expect(abort).toHaveBeenCalledWith(
+      expect.stringContaining("further out than a single wait can cover"),
+    );
+  });
+
+  it("still waits out a rejection whose reset time is beyond the wait cap", async () => {
+    vi.useFakeTimers();
+
+    // The same reset time on the rejection path costs nothing to probe: the
+    // capped wait is spent and the retry re-reads the reset time, so it must
+    // not abort and must not drop to the escalating fallback.
+    const resumeAt = new Date(Date.now() + 25 * 60 * 60_000);
+    let callCount = 0;
+    const agent: Agent = {
+      name: "claude",
+      run: vi.fn(async () => {
+        callCount++;
+        if (callCount === 1) {
+          throw new RateLimitAgentError(
+            "claude usage limit reached",
+            "detail",
+            resumeAt,
+          );
+        }
+        return createSuccessResult();
+      }),
+    };
+    const orchestrator = new Orchestrator(
+      config,
+      agent,
+      runInfo,
+      "ship it",
+      "/repo",
+      0,
+      { maxIterations: 1 },
+    );
+
+    const abort = vi.fn();
+    orchestrator.on("abort", abort);
+
+    const startPromise = orchestrator.start();
+
+    await vi.waitFor(() => {
+      expect(orchestrator.getState().status).toBe("waiting");
+    });
+    // Capped at 24h: neither the escalating fallback nor the full 25h.
+    const waitingUntil = orchestrator.getState().waitingUntil;
+    expect(waitingUntil?.getTime()).toBeGreaterThan(
+      Date.now() + 23 * 60 * 60_000,
+    );
+    expect(waitingUntil?.getTime()).toBeLessThan(resumeAt.getTime());
+
+    await vi.advanceTimersByTimeAsync(24 * 60 * 60_000);
+    await vi.waitFor(() => {
+      expect(agent.run).toHaveBeenCalledTimes(2);
+    });
+    await startPromise;
+
+    expect(abort).not.toHaveBeenCalledWith(
+      expect.stringContaining("rate-limit wait"),
+    );
+  });
+
+  it("waits when the extra-usage reset time is still ahead, however close", async () => {
+    vi.useFakeTimers();
+
+    const resumeAt = new Date(Date.now() + 1_000);
+    const agent: Agent = {
+      name: "claude",
+      run: vi.fn(async (_prompt, _cwd, options) => {
+        options?.onOverage?.({ resumeAt });
+        return createSuccessResult();
+      }),
+    };
+    const orchestrator = new Orchestrator(
+      config,
+      agent,
+      runInfo,
+      "ship it",
+      "/repo",
+      0,
+      { maxIterations: 2 },
+    );
+
+    const abort = vi.fn();
+    orchestrator.on("abort", abort);
+
+    const startPromise = orchestrator.start();
+
+    // A reset time in the future is usable no matter how soon it lands; only
+    // one already behind us leaves nothing to wait for.
+    await vi.waitFor(() => {
+      expect(orchestrator.getState().status).toBe("waiting");
+    });
+    expect(abort).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(2 * 60_000);
+    await startPromise;
+
+    expect(agent.run).toHaveBeenCalledTimes(2);
+  });
+
+  it("waits for the window to reset when an errored iteration was billed to extra usage", async () => {
+    vi.useFakeTimers();
+
+    // Deliberately shorter than the 60s first-error backoff: the window is
+    // decided against the moment the provider reported it, so a pause of
+    // gnhf's own can never consume a reset time that was usable when it
+    // arrived and abort a run whose window has genuinely returned.
+    const resumeAt = new Date(Date.now() + 40_000);
+    let callCount = 0;
+    const agent: Agent = {
+      name: "claude",
+      run: vi.fn(async (_prompt, _cwd, options) => {
+        callCount++;
+        if (callCount === 1) {
+          options?.onOverage?.({ resumeAt });
+          throw new Error("claude returned no structured_output");
+        }
+        return createSuccessResult();
+      }),
+    };
+    const orchestrator = new Orchestrator(
+      config,
+      agent,
+      runInfo,
+      "ship it",
+      "/repo",
+      0,
+      { maxIterations: 2 },
+    );
+
+    const abort = vi.fn();
+    orchestrator.on("abort", abort);
+
+    const startPromise = orchestrator.start();
+
+    // The window is spent, so the reset wait comes first and names itself.
+    await vi.waitFor(() => {
+      expect(orchestrator.getState().status).toBe("waiting");
+    });
+    expect(orchestrator.getState().waitingUntil).toEqual(
+      new Date(resumeAt.getTime() + 60_000),
+    );
+    expect(orchestrator.getState().lastAgentError).toBe(
+      `extra usage engaged - waiting for the usage window to reset at ${resumeAt.toISOString()}`,
+    );
+
+    await vi.advanceTimersByTimeAsync(100_000);
+
+    // Then the ordinary error backoff, which reports the error again rather
+    // than the pause that just ended.
+    await vi.waitFor(() => {
+      expect(orchestrator.getState().lastAgentError).toBe(
+        "claude returned no structured_output",
+      );
+    });
+    expect(agent.run).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    await vi.waitFor(() => {
+      expect(agent.run).toHaveBeenCalledTimes(2);
+    });
+    await startPromise;
+
+    expect(abort).not.toHaveBeenCalledWith(
+      expect.stringContaining("extra usage"),
+    );
+    expect(orchestrator.getState()).toMatchObject({
+      successCount: 1,
+      failCount: 1,
+      currentIteration: 2,
+    });
+  });
+
+  it("aborts instead of buying more when extra usage reports no reset time", async () => {
+    vi.useFakeTimers();
+
+    const agent: Agent = {
+      name: "claude",
+      run: vi.fn(async (_prompt, _cwd, options) => {
+        options?.onOverage?.({ resumeAt: null });
+        // The billed iteration also errored, so lastAgentError is set when the
+        // overage abort happens.
+        throw new Error("claude returned no structured_output");
+      }),
+    };
+    const orchestrator = new Orchestrator(
+      config,
+      agent,
+      runInfo,
+      "ship it",
+      "/repo",
+    );
+
+    const abort = vi.fn();
+    orchestrator.on("abort", abort);
+
+    await orchestrator.start();
+
+    // Escalating backoff would re-enter overage on every probe, so a flag
+    // whose whole purpose is "stop spending" fails closed.
+    expect(agent.run).toHaveBeenCalledTimes(1);
+    expect(abort).toHaveBeenCalledWith(
+      expect.stringContaining("no reset time"),
+    );
+    // cli.ts reports `lastAgentError ?? lastMessage` in the permanent stdout
+    // summary, so the agent's own error must not displace the reason gnhf
+    // stopped to protect the user's credits.
+    const finalState = orchestrator.getState();
+    expect(finalState.lastAgentError ?? finalState.lastMessage).toContain(
+      "no reset time was reported",
+    );
   });
 
   it("aborts immediately for permanent agent errors without backoff", async () => {

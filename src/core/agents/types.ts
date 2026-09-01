@@ -158,6 +158,16 @@ export interface TokenUsage {
   estimated?: boolean;
 }
 
+// The provider served this iteration from paid extra usage (Claude "usage
+// credits") because the included window was exhausted. Unlike a rejection the
+// request was still served, so the iteration's work is real and is kept; only
+// the next one waits for the window to reset. Reported through `onOverage`
+// rather than the result, since an iteration can spend the window and still
+// end in an error.
+export interface UsageOverage {
+  resumeAt: Date | null;
+}
+
 export interface AgentResult {
   output: AgentOutput;
   usage: TokenUsage;
@@ -193,9 +203,16 @@ export type OnUsage = (usage: TokenUsage) => void;
 
 export type OnMessage = (text: string) => void;
 
+// Reported out-of-band because overage is orthogonal to how the iteration
+// ends: the window can be spent on an attempt that later fails, and the
+// orchestrator must still wait rather than buy the next iteration. `null`
+// means the provider reported the window recovered.
+export type OnOverage = (overage: UsageOverage | null) => void;
+
 export interface AgentRunOptions {
   onUsage?: OnUsage;
   onMessage?: OnMessage;
+  onOverage?: OnOverage;
   signal?: AbortSignal;
   logPath?: string;
 }
