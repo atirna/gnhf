@@ -77,6 +77,7 @@ export interface OrchestratorEvents {
 }
 
 export interface RunLimits {
+  fallbackModel?: string;
   maxIterations?: number;
   maxTokens?: number;
   maxRateLimitWaitMs?: number;
@@ -134,6 +135,8 @@ export class Orchestrator extends EventEmitter<OrchestratorEvents> {
   private pendingCommitFailure: string | null = null;
   private activeIterationTokensEstimated = false;
   private activeIterationOverage: UsageOverage | null = null;
+  private fallbackModelActive = false;
+  private fallbackModelUsed = false;
   private consecutiveRateLimitWaits = 0;
   private totalRateLimitWaitMs = 0;
   private loopDone = false;
@@ -359,6 +362,23 @@ export class Orchestrator extends EventEmitter<OrchestratorEvents> {
         }
 
         if (result.type === "rate-limited") {
+          if (
+            this.limits.fallbackModel !== undefined &&
+            !this.fallbackModelUsed
+          ) {
+            this.fallbackModelActive = true;
+            this.fallbackModelUsed = true;
+            this.consecutiveRateLimitWaits = 0;
+            this.state.currentIteration--;
+            this.state.lastAgentError = null;
+            this.state.lastMessage = `switching to fallback model ${this.limits.fallbackModel}`;
+            appendDebugLog("rate-limit:fallback-model", {
+              iteration: this.state.currentIteration + 1,
+              model: this.limits.fallbackModel,
+            });
+            this.emit("state", this.getState());
+            continue;
+          }
           // The attempt did no work; retry under the same iteration number so
           // rate-limit waits don't consume --max-iterations or the
           // consecutive-failure budget. A reset time that cannot be waited for
@@ -605,8 +625,14 @@ export class Orchestrator extends EventEmitter<OrchestratorEvents> {
       logPath,
     });
 
+    const fallbackModel = this.fallbackModelActive
+      ? this.limits.fallbackModel
+      : undefined;
+    this.fallbackModelActive = false;
+
     try {
       const result = await this.agent.run(prompt, this.cwd, {
+        ...(fallbackModel === undefined ? {} : { model: fallbackModel }),
         onUsage,
         onMessage,
         onOverage,
