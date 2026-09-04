@@ -396,6 +396,7 @@ async function runSigintCliTest({
     loadConfig: vi.fn(() => ({
       agent: "claude",
       agentPathOverride: {},
+      agentModel: {},
       agentArgsOverride: {},
       acpRegistryOverrides: {},
       maxConsecutiveFailures: 3,
@@ -550,6 +551,7 @@ async function runCliResumeWithActualRun(
     loadConfig: vi.fn(() => ({
       agent: "claude",
       agentPathOverride: {},
+      agentModel: {},
       agentArgsOverride: {},
       acpRegistryOverrides: {},
       ...(opts.liveCommitMessage === undefined
@@ -670,6 +672,7 @@ describe("cli", () => {
     const { createAgent } = await runCliWithMocks(["ship it"], {
       agent: "codex",
       agentPathOverride: {},
+      agentModel: {},
       agentArgsOverride: {
         codex: ["-m", "gpt-5.4", "--full-auto"],
       },
@@ -687,10 +690,100 @@ describe("cli", () => {
     );
   });
 
+  it("resolves the model from agentModel config and lets --model override it", async () => {
+    const { createAgent } = await runCliWithMocks(["ship it"], {
+      agent: "codex",
+      agentPathOverride: {},
+      agentModel: { codex: "gpt-5.4" },
+      agentArgsOverride: {},
+      acpRegistryOverrides: {},
+      maxConsecutiveFailures: 3,
+      preventSleep: false,
+    });
+
+    expect(createAgent).toHaveBeenCalledWith(
+      "codex",
+      stubRunInfo,
+      undefined,
+      undefined,
+      { includeStopField: false, acpRegistryOverrides: {}, model: "gpt-5.4" },
+    );
+
+    const flagResult = await runCliWithMocks(
+      ["--model", "gpt-5.5", "ship it"],
+      {
+        agent: "codex",
+        agentPathOverride: {},
+        agentModel: { codex: "gpt-5.4" },
+        agentArgsOverride: {},
+        acpRegistryOverrides: {},
+        maxConsecutiveFailures: 3,
+        preventSleep: false,
+      },
+    );
+
+    expect(flagResult.createAgent).toHaveBeenCalledWith(
+      "codex",
+      stubRunInfo,
+      undefined,
+      undefined,
+      { includeStopField: false, acpRegistryOverrides: {}, model: "gpt-5.5" },
+    );
+  });
+
+  it("rejects --model for ACP targets", async () => {
+    await expect(
+      runCliWithMocks(["--model", "gemini-2.5-pro", "ship it"], {
+        agent: "acp:gemini",
+        agentPathOverride: {},
+        agentModel: {},
+        agentArgsOverride: {},
+        acpRegistryOverrides: {},
+        maxConsecutiveFailures: 3,
+        preventSleep: false,
+      }),
+    ).rejects.toThrow("process.exit unexpectedly called with 1");
+  });
+
+  it.each(["", "   "])("rejects blank --model values", async (model) => {
+    await expect(
+      runCliWithMocks(["--model", model, "ship it"], {
+        agent: "opencode",
+        agentPathOverride: {},
+        agentModel: { opencode: "openai/gpt-5" },
+        agentArgsOverride: {},
+        acpRegistryOverrides: {},
+        maxConsecutiveFailures: 3,
+        preventSleep: false,
+      }),
+    ).rejects.toThrow("process.exit unexpectedly called with 1");
+  });
+
+  it.each([
+    ["opencode", "gpt-5"],
+    ["rovodev", "claude-sonnet-4-5"],
+  ] as const)(
+    "rejects unsupported --model for --agent %s",
+    async (agent, model) => {
+      await expect(
+        runCliWithMocks(["--model", model, "ship it"], {
+          agent,
+          agentPathOverride: {},
+          agentModel: {},
+          agentArgsOverride: {},
+          acpRegistryOverrides: {},
+          maxConsecutiveFailures: 3,
+          preventSleep: false,
+        }),
+      ).rejects.toThrow("process.exit unexpectedly called with 1");
+    },
+  );
+
   it("buckets raw ACP command specs in telemetry", async () => {
     const { telemetry } = await runCliWithMocks(["ship it"], {
       agent: "acp:./bin/dev-acp --profile ci --token secret",
       agentPathOverride: {},
+      agentModel: {},
       agentArgsOverride: {},
       acpRegistryOverrides: {},
       maxConsecutiveFailures: 3,
@@ -713,6 +806,7 @@ describe("cli", () => {
       {
         agent: "opencode",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -764,6 +858,7 @@ describe("cli", () => {
         {
           agent: "claude",
           agentPathOverride: {},
+          agentModel: {},
           agentArgsOverride: {},
           acpRegistryOverrides: {},
           maxConsecutiveFailures: 3,
@@ -795,6 +890,7 @@ describe("cli", () => {
       {
         agent: rawAgent,
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -815,6 +911,7 @@ describe("cli", () => {
       {
         agent: rawAgent,
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -839,6 +936,7 @@ describe("cli", () => {
       {
         agent: rawAgent,
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -861,6 +959,7 @@ describe("cli", () => {
       {
         agent: "codex",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -885,6 +984,7 @@ describe("cli", () => {
     const { createAgent, setupRun } = await runCliWithMocks(["ship it"], {
       agent: "codex",
       agentPathOverride: {},
+      agentModel: {},
       agentArgsOverride: {},
       acpRegistryOverrides: {},
       commitMessage: CONVENTIONAL_COMMIT_MESSAGE,
@@ -935,6 +1035,7 @@ describe("cli", () => {
       {
         agent: "codex",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         commitMessage: CONVENTIONAL_COMMIT_MESSAGE,
@@ -1129,6 +1230,7 @@ describe("cli", () => {
       {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -1150,6 +1252,7 @@ describe("cli", () => {
       {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -1169,6 +1272,7 @@ describe("cli", () => {
     const { orchestratorCtor } = await runCliWithMocks(["ship it", "--push"], {
       agent: "claude",
       agentPathOverride: {},
+      agentModel: {},
       agentArgsOverride: {},
       acpRegistryOverrides: {},
       maxConsecutiveFailures: 3,
@@ -1190,6 +1294,7 @@ describe("cli", () => {
       {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -1205,6 +1310,7 @@ describe("cli", () => {
     const { rendererCtor } = await runCliWithMocks(["ship it"], {
       agent: "claude",
       agentPathOverride: {},
+      agentModel: {},
       agentArgsOverride: {},
       acpRegistryOverrides: {},
       maxConsecutiveFailures: 3,
@@ -1219,6 +1325,7 @@ describe("cli", () => {
     const { loadConfig, rendererCtor } = await runCliWithMocks(["--mock"], {
       agent: "claude",
       agentPathOverride: {},
+      agentModel: {},
       agentArgsOverride: {},
       acpRegistryOverrides: {},
       maxConsecutiveFailures: 3,
@@ -1238,6 +1345,7 @@ describe("cli", () => {
       {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -1279,6 +1387,7 @@ describe("cli", () => {
         {
           agent: "claude",
           agentPathOverride: {},
+          agentModel: {},
           agentArgsOverride: {},
           acpRegistryOverrides: {},
           maxConsecutiveFailures: 3,
@@ -1326,6 +1435,7 @@ describe("cli", () => {
         {
           agent: "claude",
           agentPathOverride: {},
+          agentModel: {},
           agentArgsOverride: {},
           acpRegistryOverrides: {},
           maxConsecutiveFailures: 3,
@@ -1349,6 +1459,7 @@ describe("cli", () => {
       runCliWithMocks(["ship it", "--current-branch", "--worktree"], {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -1362,6 +1473,7 @@ describe("cli", () => {
       await runCliWithMocks(["ship it", "--prevent-sleep", "off"], {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -1374,6 +1486,7 @@ describe("cli", () => {
     expect(orchestratorCtor.mock.calls[0]?.[0]).toEqual({
       agent: "claude",
       agentPathOverride: {},
+      agentModel: {},
       agentArgsOverride: {},
       acpRegistryOverrides: {},
       maxConsecutiveFailures: 3,
@@ -1395,6 +1508,7 @@ describe("cli", () => {
       {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -1421,6 +1535,7 @@ describe("cli", () => {
       {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -1455,6 +1570,7 @@ describe("cli", () => {
       {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -1481,6 +1597,7 @@ describe("cli", () => {
         {
           agent: "claude",
           agentPathOverride: {},
+          agentModel: {},
           agentArgsOverride: {},
           acpRegistryOverrides: {},
           maxConsecutiveFailures: 3,
@@ -1515,6 +1632,7 @@ describe("cli", () => {
       {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -1551,6 +1669,7 @@ describe("cli", () => {
         {
           agent: "claude",
           agentPathOverride: {},
+          agentModel: {},
           agentArgsOverride: {},
           acpRegistryOverrides: {},
           maxConsecutiveFailures: 3,
@@ -1592,6 +1711,7 @@ describe("cli", () => {
       {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -1635,6 +1755,7 @@ describe("cli", () => {
         {
           agent: "claude",
           agentPathOverride: {},
+          agentModel: {},
           agentArgsOverride: {},
           acpRegistryOverrides: {},
           maxConsecutiveFailures: 3,
@@ -1672,6 +1793,7 @@ describe("cli", () => {
         {
           agent: "claude",
           agentPathOverride: {},
+          agentModel: {},
           agentArgsOverride: {},
           acpRegistryOverrides: {},
           maxConsecutiveFailures: 3,
@@ -1704,6 +1826,7 @@ describe("cli", () => {
     const loadConfig = vi.fn(() => ({
       agent: "claude" as const,
       agentPathOverride: {},
+      agentModel: {},
       agentArgsOverride: {},
       acpRegistryOverrides: {},
       maxConsecutiveFailures: 3,
@@ -1876,6 +1999,7 @@ describe("cli", () => {
       loadConfig: vi.fn(() => ({
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -2014,6 +2138,7 @@ describe("cli", () => {
       loadConfig: vi.fn(() => ({
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -2148,6 +2273,7 @@ describe("cli", () => {
       loadConfig: vi.fn(() => ({
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -2277,6 +2403,7 @@ describe("cli", () => {
       loadConfig: vi.fn(() => ({
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -2403,6 +2530,7 @@ describe("cli", () => {
       loadConfig: vi.fn(() => ({
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -2522,6 +2650,7 @@ describe("cli", () => {
       loadConfig: vi.fn(() => ({
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -2642,6 +2771,7 @@ describe("cli", () => {
       {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -2703,6 +2833,7 @@ describe("cli", () => {
       loadConfig: vi.fn(() => ({
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -2851,6 +2982,7 @@ describe("cli", () => {
       loadConfig: vi.fn(() => ({
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -2955,6 +3087,7 @@ describe("cli", () => {
       {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -3026,6 +3159,7 @@ describe("cli", () => {
       loadConfig: vi.fn(() => ({
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -3180,6 +3314,7 @@ describe("cli", () => {
       loadConfig: vi.fn(() => ({
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -3291,6 +3426,7 @@ describe("cli", () => {
       {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -3317,6 +3453,7 @@ describe("cli", () => {
       {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -3340,6 +3477,7 @@ describe("cli", () => {
       {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -3359,6 +3497,7 @@ describe("cli", () => {
       {
         agent: "claude",
         agentPathOverride: {},
+        agentModel: {},
         agentArgsOverride: {},
         acpRegistryOverrides: {},
         maxConsecutiveFailures: 3,
@@ -3408,6 +3547,7 @@ describe("cli", () => {
         {
           agent: "claude",
           agentPathOverride: {},
+          agentModel: {},
           agentArgsOverride: {},
           acpRegistryOverrides: {},
           maxConsecutiveFailures: 3,
@@ -3506,6 +3646,7 @@ describe("cli", () => {
         {
           agent: "claude",
           agentPathOverride: {},
+          agentModel: {},
           agentArgsOverride: {},
           acpRegistryOverrides: {},
           maxConsecutiveFailures: 3,
@@ -3562,6 +3703,7 @@ describe("cli", () => {
         {
           agent: "claude",
           agentPathOverride: {},
+          agentModel: {},
           agentArgsOverride: {},
           acpRegistryOverrides: {},
           maxConsecutiveFailures: 3,
@@ -3626,6 +3768,7 @@ describe("cli", () => {
         {
           agent: "claude",
           agentPathOverride: {},
+          agentModel: {},
           agentArgsOverride: {},
           acpRegistryOverrides: {},
           maxConsecutiveFailures: 3,
@@ -3682,6 +3825,7 @@ describe("cli", () => {
         {
           agent: "claude",
           agentPathOverride: {},
+          agentModel: {},
           agentArgsOverride: {},
           acpRegistryOverrides: {},
           maxConsecutiveFailures: 3,

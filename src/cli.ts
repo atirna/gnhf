@@ -144,6 +144,19 @@ function parseOnOffBoolean(value: string): boolean {
   );
 }
 
+function parseModel(value: string): string {
+  const model = value.trim();
+  if (model === "") {
+    throw new InvalidArgumentError("must be a non-empty string");
+  }
+  return model;
+}
+
+function isOpenCodeModel(model: string): boolean {
+  const slashIndex = model.indexOf("/");
+  return slashIndex > 0 && slashIndex < model.length - 1;
+}
+
 function humanizeErrorMessage(message: string): string {
   if (message.includes("not a git repository")) {
     return 'This command must be run inside a Git repository. Change into a repo or run "git init" first.';
@@ -591,6 +604,11 @@ program
     `Agent to use (${AGENT_NAMES.join(", ")}, or acp:<target-or-command>)`,
   )
   .option(
+    "--model <model>",
+    "Model for the agent; overrides agentModel.<agent> from config",
+    parseModel,
+  )
+  .option(
     "--max-iterations <n>",
     "Abort after N total iterations",
     parseNonNegativeInteger,
@@ -645,6 +663,7 @@ program
       promptArg: string | undefined,
       options: {
         agent?: string;
+        model?: string;
         maxIterations?: number;
         maxTokens?: number;
         maxRateLimitWait?: number;
@@ -711,6 +730,25 @@ program
       if (!isAgentSpec(config.agent)) {
         console.error(
           `Unknown agent: ${config.agent}. Use ${AGENT_SPEC_LIST}.`,
+        );
+        process.exit(1);
+      }
+      const nativeAgent = getNativeAgentName(config.agent);
+      if (options.model !== undefined && nativeAgent === undefined) {
+        console.error("--model is not supported with ACP targets.");
+        process.exit(1);
+      }
+      if (
+        options.model !== undefined &&
+        nativeAgent === "opencode" &&
+        !isOpenCodeModel(options.model)
+      ) {
+        console.error("--model for --agent opencode must use provider/model.");
+        process.exit(1);
+      }
+      if (options.model !== undefined && nativeAgent === "rovodev") {
+        console.error(
+          "--model is not supported with --agent rovodev. Set agent.modelId in Rovo Dev settings instead.",
         );
         process.exit(1);
       }
@@ -1035,7 +1073,9 @@ program
         gnhfVersion: packageVersion,
       });
 
-      const nativeAgent = getNativeAgentName(config.agent);
+      const model =
+        options.model ??
+        (nativeAgent ? config.agentModel?.[nativeAgent] : undefined);
       const agent = createAgent(
         config.agent,
         runInfo,
@@ -1044,6 +1084,7 @@ program
         {
           ...schemaOptions,
           acpRegistryOverrides: config.acpRegistryOverrides,
+          model,
         },
       );
       const orchestrator = new Orchestrator(

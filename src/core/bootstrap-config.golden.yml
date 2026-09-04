@@ -35,6 +35,14 @@ agent: claude
 #     - --model
 #     - composer-2.5
 
+# Models for supported native agents (optional)
+# Values are forwarded to the CLI except opencode, which receives
+# its model in the request body.
+# agentModel:
+#   claude: sonnet
+#   codex: gpt-5.4
+#   opencode: fireworks-ai/accounts/fireworks/models/qwen3p6-plus
+
 # Custom ACP target commands (optional)
 # Maps acp:<target> names to spawn commands. Useful for naming a
 # local or beta build of an ACP agent.
