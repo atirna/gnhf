@@ -1,0 +1,6 @@
+{
+  "receivedModel": {
+    "providerID": "openai",
+    "modelID": "gpt-5"
+  }
+}

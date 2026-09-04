@@ -1,0 +1,46 @@
+[?1049h[?25l[H                                                                               
+                          [2mg n h f[0m  [2m·[0m  [2mo p e n c o d e[0m                          
+                                                                               
+                                                                         [1m·[0m     
+            [1m┏━╸┏━┓┏━┓╺┳┓   ┏┓╻╻┏━╸╻ ╻╺┳╸   ╻ ╻┏━┓╻ ╻┏━╸   ┏━╸╻ ╻┏┓╻[0m            
+            [1m┃╺┓┃ ┃┃ ┃ ┃┃   ┃┗┫┃┃╺┓┣━┫ ┃    ┣━┫┣━┫┃┏┛┣╸    ┣╸ ┃ ┃┃┗┫[0m            
+            [1m┗━┛┗━┛┗━┛╺┻┛   ╹ ╹╹┗━┛╹ ╹ ╹    ╹ ╹╹ ╹┗┛ ┗━╸   ╹  ┗━┛╹ ╹[0m            
+                                                                               
+                           [2mReturn structured success[0m                           
+                                                                         [1m°[0m     
+                                                                            [1m⋆[0m  
+                                                                            [1m·[0m  
+                                                                               
+                 [1m00:00:00[0m [2m·[0m 0 total [2m·[0m 0 in [2m·[0m 0 out [2m·[0m 0 commits                 
+                                                                        [1m·[0m      
+                                                                               
+                                  [2mworking...[0m                                   
+                                                                       [2m·[0m       
+                                                                               
+                                                                               
+                                                                               
+                                      🌕                                 [2m⋆[0m     
+                     [2m[ctrl+c to stop, gnhf again to resume][0m                     
+                                                                                [22;39H[0m🌖[12;78H[0m[2m╱[13;77H╱[14;76H╱[15;75H[0m[1m╱[22;39H[0m🌗[12;78H[0m [15;75H[0m[2m╱[16;74H[0m[1m╱[22;39H[0m🌘[13;77H[0m [14;76H [16;74H[0m[2m╱[17;73H╱[18;72H[0m[1m╱[22;39H[0m🌑[15;73H[0m[2m·[15;75H[0m [16;74H [18;72H[0m[2m╱[22;39H[0m🌒[14;25H[0m[1m1[15;73H[0m [17;73H [22;39H🌓[?25h[?1049l
+  gnhf: Run log: /Users/atirna/.no-mistakes/worktrees/8a8047c374b2/01M1NA7NG1MND1T3DT401YE40Z/.gnhf/runs/return-structured-su-50dcad/gnhf.log
+
+
+╭────────────────────────────────────────────────────────────╮
+│ × gnhf stopped                                             │
+│   opencode ran for 1s before: max iterations reached (1)   │
+╰────────────────────────────────────────────────────────────╯
+
+  iterations      1 total       1 good       0 failed
+  tokens          2 total       1 in         1 out
+  branch diff     0 commits     +0           -0
+  files           0 added       0 updated    0 deleted
+
+  notes           /Users/atirna/.no-mistakes/worktrees/8a8047c374b2/01M1NA7NG1MND1T3DT401YE40Z/.gnhf/runs/return-structured-su-50dcad/notes.md
+  debug log       /Users/atirna/.no-mistakes/worktrees/8a8047c374b2/01M1NA7NG1MND1T3DT401YE40Z/.gnhf/runs/return-structured-su-50dcad/gnhf.log
+
+  next steps      git log --oneline 6da8b1516f5b..HEAD
+                  git diff --stat 6da8b1516f5b..HEAD
+                  gh pr create
+
+  too much        git push no-mistakes:
+  to review?      https://github.com/kunchenguid/no-mistakes

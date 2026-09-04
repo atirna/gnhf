@@ -1,0 +1,46 @@
+[?1049h[?25l[H [1m·[0m     [1m°[0m                                                                [2m°[0m      
+                          [2mg n h f[0m  [2m·[0m  [2mo p e n c o d e[0m                   [1m·[0m      
+   [1m⋆[0m                                                                           
+                                                                               
+            [1m┏━╸┏━┓┏━┓╺┳┓   ┏┓╻╻┏━╸╻ ╻╺┳╸   ╻ ╻┏━┓╻ ╻┏━╸   ┏━╸╻ ╻┏┓╻[0m            
+    [2m⋆[0m       [1m┃╺┓┃ ┃┃ ┃ ┃┃   ┃┗┫┃┃╺┓┣━┫ ┃    ┣━┫┣━┫┃┏┛┣╸    ┣╸ ┃ ┃┃┗┫[0m            
+  [1m⋆[0m         [1m┗━┛┗━┛┗━┛╺┻┛   ╹ ╹╹┗━┛╹ ╹ ╹    ╹ ╹╹ ╹┗┛ ┗━╸   ╹  ┗━┛╹ ╹[0m            
+                                                                               
+                      [2mReturn override structured success[0m                       
+   [1m·[0m                                                                           
+                                                                               
+                                                                               
+                                                                               
+                 [1m00:00:00[0m [2m·[0m 0 total [2m·[0m 0 in [2m·[0m 0 out [2m·[0m 0 commits                [1m°[0m
+                                                                               
+                                                                               
+      [2m°[0m                           [2mworking...[0m                                   
+                                                                               
+[1m·[0m                                                                      [1m·[0m       
+[1m·[0m                                                                       [1m°[0m      
+                                                                             [1m·[0m 
+   [2m·[0m                                  🌒                                       
+                     [2m[ctrl+c to stop, gnhf again to resume][0m                     
+                                                                                [22;39H[0m🌓[?25h[?1049l
+  gnhf: Run log: /Users/atirna/.no-mistakes/worktrees/8a8047c374b2/01M1NA7NG1MND1T3DT401YE40Z/.gnhf/runs/return-override-stru-1021c9/gnhf.log
+
+
+╭────────────────────────────────────────────────────────────╮
+│ × gnhf stopped                                             │
+│   opencode ran for 0s before: max iterations reached (1)   │
+╰────────────────────────────────────────────────────────────╯
+
+  iterations      1 total       1 good       0 failed
+  tokens          2 total       1 in         1 out
+  branch diff     0 commits     +0           -0
+  files           0 added       0 updated    0 deleted
+
+  notes           /Users/atirna/.no-mistakes/worktrees/8a8047c374b2/01M1NA7NG1MND1T3DT401YE40Z/.gnhf/runs/return-override-stru-1021c9/notes.md
+  debug log       /Users/atirna/.no-mistakes/worktrees/8a8047c374b2/01M1NA7NG1MND1T3DT401YE40Z/.gnhf/runs/return-override-stru-1021c9/gnhf.log
+
+  next steps      git log --oneline 6da8b1516f5b..HEAD
+                  git diff --stat 6da8b1516f5b..HEAD
+                  gh pr create
+
+  too much        git push no-mistakes:
+  to review?      https://github.com/kunchenguid/no-mistakes

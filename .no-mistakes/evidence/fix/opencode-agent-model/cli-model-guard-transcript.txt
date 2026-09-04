@@ -1,0 +1,16 @@
+--- bare OpenCode model ---
+--model for --agent opencode must use provider/model.
+[exit=1]
+
+--- Rovo Dev model override ---
+--model is not supported with --agent rovodev. Set agent.modelId in Rovo Dev settings instead.
+[exit=1]
+
+--- ACP target model override ---
+--model is not supported with ACP targets.
+[exit=1]
+
+--- blank model value ---
+error: option '--model <model>' argument '' is invalid. must be a non-empty string
+[exit=1]
+
