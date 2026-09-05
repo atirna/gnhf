@@ -1150,6 +1150,9 @@ export class OpenCodeAgent implements Agent {
         sessionId,
         hasStructuredOutput: structuredOutputFromSSE !== null,
       });
+      if (!sawSessionIdle) {
+        throw new Error("OpenCode produced no final answer");
+      }
       throw new EmptyAgentResponseError(usage);
     }
 

@@ -1029,6 +1029,32 @@ describe("OpenCodeAgent", () => {
     ]);
   });
 
+  it("does not continue a session whose event stream closes before idle", async () => {
+    const proc = createMockProcess();
+    mockSpawn.mockReturnValue(proc);
+
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ healthy: true, version: "1.3.13" }))
+      .mockResolvedValueOnce(jsonResponse({ id: "session-123" }))
+      .mockResolvedValueOnce(
+        sseResponse(
+          'data: {"directory":"/repo","payload":{"type":"message.updated","properties":{"sessionID":"session-123","info":{"id":"incomplete-1","role":"assistant"}}}}\n\n',
+        ),
+      )
+      .mockResolvedValueOnce(promptAsyncResponse())
+      .mockResolvedValueOnce(jsonResponse(true));
+
+    await expect(agent.run("test", "/repo")).rejects.toThrow(
+      "OpenCode produced no final answer",
+    );
+    expect(
+      fetchMock.mock.calls.filter(
+        ([url]) =>
+          url === "http://127.0.0.1:8765/session/session-123/prompt_async",
+      ),
+    ).toHaveLength(1);
+  });
+
   it("continues instead of parsing reasoning-phase text as a final answer", async () => {
     const proc = createMockProcess();
     mockSpawn.mockReturnValue(proc);
