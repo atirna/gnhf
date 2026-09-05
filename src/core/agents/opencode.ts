@@ -444,7 +444,6 @@ export class OpenCodeAgent implements Agent {
           output: continuation.output,
           usage: addUsage(error.usage, continuation.usage),
         };
-        onUsage?.(result.usage);
       }
       appendDebugLog("opencode:run:end", {
         sessionId,

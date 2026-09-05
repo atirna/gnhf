@@ -1002,7 +1002,8 @@ describe("OpenCodeAgent", () => {
       )
       .mockResolvedValueOnce(jsonResponse(true));
 
-    const result = await agent.run("test", "/repo");
+    const onUsage = vi.fn();
+    const result = await agent.run("test", "/repo", { onUsage });
 
     expect(result).toMatchObject({
       output: { summary: "recovered" },
@@ -1013,6 +1014,8 @@ describe("OpenCodeAgent", () => {
         cacheCreationTokens: 6,
       },
     });
+    expect(onUsage).toHaveBeenCalledTimes(2);
+    expect(onUsage).toHaveBeenNthCalledWith(2, result.usage);
     expect(fetchMock).toHaveBeenNthCalledWith(
       6,
       "http://127.0.0.1:8765/session/session-123/prompt_async",
