@@ -1,0 +1,17 @@
+$ tsdown
+ℹ tsdown v0.21.7 powered by rolldown v1.0.0-rc.12
+ℹ config file: /Users/atirna/.no-mistakes/worktrees/c5d7c4594d89/01M2YFFCNB5YE0F6CRYA0QXZK5/tsdown.config.ts 
+ℹ entry: src/cli.ts
+ℹ target: node20
+ℹ tsconfig: tsconfig.json
+ℹ Build start
+ℹ Hint: consider adding deps.onlyBundle option to avoid unintended bundling of dependencies, or set deps.onlyBundle: false to disable this hint.
+See more at https://tsdown.dev/options/dependencies#deps-onlybundle
+Detected dependencies in bundle:
+- acpx
+- zod
+- @agentclientprotocol/sdk
+ℹ Granting execute permission to dist/cli.mjs
+ℹ dist/cli.mjs  667.87 kB │ gzip: 142.59 kB
+ℹ 1 files, total: 667.87 kB
+✔ Build complete in 1509ms

@@ -1,0 +1,44 @@
+[?1049h[?25l[H                                                                               
+                          [2mg n h f[0m  [2m·[0m  [2mo p e n c o d e[0m                          
+                                                                             [2m°[0m 
+      [2m·[0m                                                                        
+            [1m┏━╸┏━┓┏━┓╺┳┓   ┏┓╻╻┏━╸╻ ╻╺┳╸   ╻ ╻┏━┓╻ ╻┏━╸   ┏━╸╻ ╻┏┓╻[0m            
+    [2m⋆[0m       [1m┃╺┓┃ ┃┃ ┃ ┃┃   ┃┗┫┃┃╺┓┣━┫ ┃    ┣━┫┣━┫┃┏┛┣╸    ┣╸ ┃ ┃┃┗┫[0m          [2m✧[0m 
+            [1m┗━┛┗━┛┗━┛╺┻┛   ╹ ╹╹┗━┛╹ ╹ ╹    ╹ ╹╹ ╹┗┛ ┗━╸   ╹  ┗━┛╹ ╹[0m        [2m⋆[0m   
+[1m·[0m                                                                              
+      [1m⋆[0m                             [2mship it[0m                                    
+                                                                               
+                                                                               
+                                                                         [1m°[0m     
+                                                                               
+ [2m·[0m  [1m°[0m            [1m00:00:00[0m [2m·[0m 0 total [2m·[0m 0 in [2m·[0m 0 out [2m·[0m 0 commits                 
+                                                                             [1m·[0m 
+[1m·[0m                                                                              
+  [1m⋆[0m                               [2mworking...[0m                              [2m°[0m    
+                                                                       [1m·[0m       
+    [1m·[0m                                                                          
+                                                                               
+                                                                               
+       [1m·[0m                              🌖                                       
+                     [2m[ctrl+c to stop, gnhf again to resume][0m                     
+                                                                                [22;39H[0m🌗[4;7H[0m[1m·[14;17H0[14;19H:0[14;22H:0[14;25H[0m [0m[2m·[0m 32[14;39H20 in [0m[2m·[0m 10 out[14;54H[0m[2m·[14;56H[0m1 commit[17;27H[0m[2mmax iterations reached (1)[22;39H[0m🌕[23;22H           [0m[2m[ctrl+c to[23;44Hexit][0m           [4;7H[0m[2m·[0m[9;7H[0m[2m⋆[0m[9;7H[0m [14;24H[0m[1m1[0m[9;7H[0m[2m⋆[0m[?25h[?1049l
+╭────────────────────────────────────────────────────────────╮
+│ × gnhf stopped                                             │
+│   opencode ran for 1s before: max iterations reached (1)   │
+╰────────────────────────────────────────────────────────────╯
+
+  iterations      1 total       1 good       0 failed
+  tokens          32 total      20 in        10 out
+  cache           2 read        0 write      
+  branch diff     1 commit      +1           -0
+  files           0 added       1 updated    0 deleted
+
+  notes           /Users/atirna/.no-mistakes/worktrees/c5d7c4594d89/01M2YFFCNB5YE0F6CRYA0QXZK5/.test-phase/manual-repo/.gnhf/runs/ship-it-bef426/notes.md
+  debug log       /Users/atirna/.no-mistakes/worktrees/c5d7c4594d89/01M2YFFCNB5YE0F6CRYA0QXZK5/.test-phase/manual-repo/.gnhf/runs/ship-it-bef426/gnhf.log
+
+  next steps      git log --oneline bf049775ebd0..HEAD
+                  git diff --stat bf049775ebd0..HEAD
+                  gh pr create
+
+  too much        git push no-mistakes:
+  to review?      https://github.com/kunchenguid/no-mistakes

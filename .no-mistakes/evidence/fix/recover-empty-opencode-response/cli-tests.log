@@ -1,0 +1,9 @@
+
+ RUN  v4.1.2 /Users/atirna/.no-mistakes/worktrees/c5d7c4594d89/01M2YFFCNB5YE0F6CRYA0QXZK5
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed | 15 skipped (17)
+   Start at  09:56:52
+   Duration  3.45s (transform 68ms, setup 0ms, import 78ms, tests 3.30s, environment 0ms)
+

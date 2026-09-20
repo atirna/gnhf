@@ -1,0 +1,33 @@
+
+ RUN  v4.1.2 /Users/atirna/.no-mistakes/worktrees/c5d7c4594d89/01M2YFFCNB5YE0F6CRYA0QXZK5
+
+ ❯ e2e/e2e.test.ts (17 tests | 1 failed | 16 skipped) 1647ms
+     × recovers an empty OpenCode turn in one CLI iteration 1646ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  e2e/e2e.test.ts > gnhf e2e > recovers an empty OpenCode turn in one CLI iteration
+AssertionError: expected [ { …(5) } ] to have a length of 2 but got 1
+
+- Expected
++ Received
+
+- 2
++ 1
+
+ ❯ e2e/e2e.test.ts:265:21
+    263|       (entry) => entry.event === "message:start",
+    264|     );
+    265|     expect(prompts).toHaveLength(2);
+       |                     ^
+    266|     expect(prompts.map((entry) => entry.sessionId)).toEqual([
+    267|       sessions[0]!.sessionId,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  09:55:53
+   Duration  1.74s (transform 24ms, setup 0ms, import 31ms, tests 1.65s, environment 0ms)
+
