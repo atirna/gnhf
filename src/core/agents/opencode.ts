@@ -924,7 +924,7 @@ export class OpenCodeAgent implements Agent {
           message: errorInfo.message ?? null,
           retryable: isRetryableProviderError(errorInfo),
         });
-        return true;
+        return false;
       }
 
       const payload = event.payload;
@@ -1022,7 +1022,7 @@ export class OpenCodeAgent implements Agent {
 
         processRawEvent(buffer.slice(0, boundary));
         buffer = buffer.slice(boundary + separatorLen);
-        if (sawSessionIdle) return;
+        if (sawSessionIdle || streamErrorInfo) return;
       }
 
       if (flushRemainder && buffer.trim()) {
@@ -1033,7 +1033,7 @@ export class OpenCodeAgent implements Agent {
 
     let bytesRead = 0;
     try {
-      while (!sawSessionIdle) {
+      while (!sawSessionIdle && !streamErrorInfo) {
         let readResult: ReadableStreamReadResult<Uint8Array>;
         try {
           readResult = await reader.read();
@@ -1127,6 +1127,14 @@ export class OpenCodeAgent implements Agent {
       }
     }
 
+    if (streamErrorInfo) {
+      throw new Error(buildProviderErrorMessage(streamErrorInfo));
+    }
+
+    if (!sawSessionIdle) {
+      throw new Error("OpenCode produced no final answer");
+    }
+
     if (structuredOutputFromSSE) {
       appendDebugLog("opencode:output:structured", {
         sessionId,
@@ -1138,10 +1146,6 @@ export class OpenCodeAgent implements Agent {
       };
     }
 
-    if (streamErrorInfo) {
-      throw new Error(buildProviderErrorMessage(streamErrorInfo));
-    }
-
     const finalOutputText = toNonEmptyString(lastFinalAnswerText);
 
     if (finalOutputText === null) {
@@ -1149,9 +1153,6 @@ export class OpenCodeAgent implements Agent {
         sessionId,
         hasStructuredOutput: structuredOutputFromSSE !== null,
       });
-      if (!sawSessionIdle) {
-        throw new Error("OpenCode produced no final answer");
-      }
       throw new EmptyAgentResponseError(usage);
     }
 
