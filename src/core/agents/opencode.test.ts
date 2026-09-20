@@ -330,7 +330,7 @@ describe("OpenCodeAgent", () => {
     expect(result.output.summary).toBe("done");
   });
 
-  it("processes a final SSE event even when EOF arrives without a trailing separator", async () => {
+  it("processes a final idle SSE event even when EOF arrives without a trailing separator", async () => {
     const proc = createMockProcess();
     mockSpawn.mockReturnValue(proc);
 
@@ -340,7 +340,8 @@ describe("OpenCodeAgent", () => {
       .mockResolvedValueOnce(
         sseResponse([
           'data: {"directory":"/repo","payload":{"type":"message.part.updated","properties":{"sessionID":"session-123","part":{"id":"finish-1","messageID":"msg-123","type":"step-finish","tokens":{"input":10,"output":4,"cache":{"read":3,"write":2}}}}}}\n\n',
-          'data: {"directory":"/repo","payload":{"type":"message.part.updated","properties":{"sessionID":"session-123","part":{"id":"part-final","type":"text","text":"{\\"success\\":true,\\"summary\\":\\"done\\",\\"key_changes_made\\":[],\\"key_learnings\\":[]}","metadata":{"openai":{"phase":"final_answer"}}}}}}',
+          'data: {"directory":"/repo","payload":{"type":"message.part.updated","properties":{"sessionID":"session-123","part":{"id":"part-final","type":"text","text":"{\\"success\\":true,\\"summary\\":\\"done\\",\\"key_changes_made\\":[],\\"key_learnings\\":[]}","metadata":{"openai":{"phase":"final_answer"}}}}}}\n\n',
+          'data: {"directory":"/repo","payload":{"type":"session.idle","properties":{"sessionID":"session-123"}}}',
         ]),
       )
       .mockResolvedValueOnce(
@@ -1057,6 +1058,76 @@ describe("OpenCodeAgent", () => {
       ),
     ).toHaveLength(1);
   });
+
+  it.each([
+    { continuation: false, format: "structured" },
+    { continuation: false, format: "final_answer" },
+    { continuation: true, format: "structured" },
+    { continuation: true, format: "final_answer" },
+  ])(
+    "rejects incomplete $format output (continuation: $continuation)",
+    async ({ continuation, format }) => {
+      mockSpawn.mockReturnValue(createMockProcess());
+      const output = {
+        success: true,
+        summary: "premature success",
+        key_changes_made: [],
+        key_learnings: [],
+      };
+      const idle = (sessionID: string) =>
+        `data: ${JSON.stringify({ payload: { type: "session.idle", properties: { sessionID } } })}\n\n`;
+      const answer = {
+        payload: {
+          type:
+            format === "structured"
+              ? "message.updated"
+              : "message.part.updated",
+          properties: {
+            sessionID: "session-123",
+            ...(format === "structured"
+              ? { info: { id: "msg-1", role: "assistant", structured: output } }
+              : {
+                  part: {
+                    id: "part-final",
+                    type: "text",
+                    text: JSON.stringify(output),
+                    metadata: { openai: { phase: "final_answer" } },
+                  },
+                }),
+          },
+        },
+      };
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResponse({ healthy: true, version: "1.3.13" }),
+        )
+        .mockResolvedValueOnce(jsonResponse({ id: "session-123" }));
+      if (continuation) {
+        fetchMock
+          .mockResolvedValueOnce(sseResponse(idle("session-123")))
+          .mockResolvedValueOnce(promptAsyncResponse());
+      }
+      fetchMock
+        .mockResolvedValueOnce(
+          sseResponse([
+            `data: ${JSON.stringify(answer)}\n\n`,
+            idle("other-session"),
+          ]),
+        )
+        .mockResolvedValueOnce(promptAsyncResponse())
+        .mockResolvedValueOnce(jsonResponse(true));
+
+      await expect(agent.run("test", "/repo")).rejects.toThrow(
+        "OpenCode produced no final answer",
+      );
+      expect(
+        fetchMock.mock.calls.filter(
+          ([url]) =>
+            url === "http://127.0.0.1:8765/session/session-123/prompt_async",
+        ),
+      ).toHaveLength(continuation ? 2 : 1);
+    },
+  );
 
   it("continues instead of parsing reasoning-phase text as a final answer", async () => {
     const proc = createMockProcess();
